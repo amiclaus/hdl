@@ -53,7 +53,7 @@ pipeline {
         stage('Checkout HDL') {
             steps {
                 withFolderProperties {
-                    git url: 'https://github.com/analogdevicesinc/hdl', branch: "${env.BUILD_BRANCH}"
+                    git url: 'https://github.com/amiclaus/hdl', branch: "${env.BUILD_BRANCH}"
                 }
             }
         }
@@ -66,10 +66,16 @@ pipeline {
          }
         stage('Generate Projects') {
             steps {
-                withFolderProperties {
-                    build job: 'generate-projects', parameters: [[$class: 'StringParameterValue', name: 'PATH', value: env.PATH], [$class: 'StringParameterValue', name: 'WORKSPACE', value: env.WORKSPACE]]    
+				println env.WORKSPACE
+				jobDsl scriptText: 'job("generate-prj")'
+			
+				jobDsl targets:'generate_projects.groovy' ,
+					   additionalParameters: [PATH: env.PATH, WORKSPACE: env.WORKSPACE]
+                //withFolderProperties {
+                    //build job: 'generate-projects', parameters: [[$class: 'StringParameterValue', name: 'PATH', value: env.PATH], [$class: 'StringParameterValue', name: 'WORKSPACE', value: env.WORKSPACE]]    
                     //sh "make all -j 4"
-                }
+                //}
+				
             }
         }
     }
