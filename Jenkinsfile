@@ -66,11 +66,69 @@ pipeline {
          }
         stage('Generate Projects') {
             steps {
-				println env.WORKSPACE
-				jobDsl scriptText: 'job("generate-prj")'
+				jobDsl scriptText: """
+						import static groovy.io.FileType.FILES
+
+						def envar = System.getenv()
+
+						def list = [] 
+						def projName
+						def projPath
+						def projJobPath = ${env.JOB_NAME}
+
+						projJobPath = projJobPath.substring(0, projJobPath.lastIndexOf("/"))
+
+						def buildAllScript = "parallel("
+
+						new File(${env.WORKSPACE} + "/projects").eachFileRecurse(FILES) {
+						  if(it.name.endsWith('system_project.tcl')) {
+								projName = it.path.replace(${env.WORKSPACE} + "/projects/","")
+								projName = projName.replace("/system_project.tcl","")
+								projName = projName.replace("/",",")
+								list.add(projName) 
+						  }
+						}
+
+						list.eachWithIndex { item, index ->
+						  buildAllScript += "\n b$index: {build job: '"+ projJobPath + "/projects/$item'},"
+						}
+
+						buildAllScript += "\n)\nfailFast: false" 
+
+						folder(projJobPath + "/projects") {
+							list.each {
+								println it
+								projPath = ${env.WORKSPACE} + "/projects/" + it
+								projPath = projPath.replace(",","/")
+								it = projJobPath + "/projects/" + it
+								job(it){
+								  parameters {
+									stringParam("PATH", ${env.PATH})
+								  }
+								  steps {
+									shell("make -C $projPath")
+								  }
+								}
+							}
+						}
+						pipelineJob(projJobPath + "/build-projects"){
+							definition {
+							  parameters {
+								stringParam("PATH", PATH)
+							  }
+							  triggers {
+								upstream( "${env.JOB_NAME}", 'SUCCESS')
+							  }
+							  cps {
+								script(buildAllScript)
+								sandbox()
+							  }
+							}
+						  }
+					"""
 			
-				jobDsl targets:'generate_projects.groovy' ,
-					   additionalParameters: [PATH: env.PATH, WORKSPACE: env.WORKSPACE]
+				//jobDsl targets:'generate_projects.groovy' ,
+				//	   additionalParameters: [PATH: env.PATH, WORKSPACE: env.WORKSPACE]
                 //withFolderProperties {
                     //build job: 'generate-projects', parameters: [[$class: 'StringParameterValue', name: 'PATH', value: env.PATH], [$class: 'StringParameterValue', name: 'WORKSPACE', value: env.WORKSPACE]]    
                     //sh "make all -j 4"
